@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..data import Direction, TradeData, BarData
+else:
+    from ..data import Direction
 
 
 @dataclass
@@ -27,7 +29,18 @@ class ContractDailyResult:
     total_pnl: float = 0.0
     net_pnl: float = 0.0
 
-    def add_trade(self, trade: "TradeData") -> None:
+    def add_trade(self, trade_or_vt_symbol, direction=None, offset=None, price=None, volume=None) -> None:
+        if isinstance(trade_or_vt_symbol, str):
+            from ..data import TradeData as TD
+            trade = TD(
+                symbol=trade_or_vt_symbol,
+                direction=direction,
+                offset=offset,
+                price=price,
+                volume=volume,
+            )
+        else:
+            trade = trade_or_vt_symbol
         self.trades.append(trade)
 
     def calculate_pnl(
@@ -96,9 +109,27 @@ class PortfolioDailyResult:
                 self.date, close_price
             )
 
-    def add_trade(self, trade: "TradeData") -> None:
-        contract_result: ContractDailyResult = self.contract_results[trade.vt_symbol]
-        contract_result.add_trade(trade)
+    def add_trade(self, trade_or_vt_symbol, direction=None, offset=None, price=None, volume=None) -> None:
+        if isinstance(trade_or_vt_symbol, str):
+            from ..data import TradeData as TD, Exchange
+            trade = TD(
+                symbol=trade_or_vt_symbol.split('.')[0] if '.' in trade_or_vt_symbol else trade_or_vt_symbol,
+                exchange=Exchange.SZSE if 'SZSE' in str(trade_or_vt_symbol) else Exchange.SSE if 'SSE' in str(trade_or_vt_symbol) else Exchange.Unknown,
+                direction=direction,
+                offset=offset,
+                price=price,
+                volume=volume,
+            )
+        else:
+            trade = trade_or_vt_symbol
+
+        vt_symbol = getattr(trade, 'vt_symbol', None)
+        if vt_symbol is None:
+            vt_symbol = f"{getattr(trade, 'symbol', '')}.{getattr(trade, 'exchange', '')}"
+
+        if vt_symbol not in self.contract_results:
+            self.contract_results[vt_symbol] = ContractDailyResult(self.date, 0.0)
+        self.contract_results[vt_symbol].add_trade(trade)
 
     def calculate_pnl(
         self,
@@ -268,6 +299,7 @@ class PortfolioManager:
         offset: "Offset",
         price: float,
         volume: float,
+        trade_dt: datetime | None = None,
     ) -> tuple[float, float]:
         size = self.sizes.get(vt_symbol, 1.0)
         turnover = price * volume * size
@@ -284,4 +316,28 @@ class PortfolioManager:
         commission = turnover * rate
         self.cash -= commission
 
+        if trade_dt is not None:
+            trade_date = trade_dt.date()
+            if trade_date not in self.daily_results:
+                self.daily_results[trade_date] = PortfolioDailyResult(trade_date, {})
+            self.daily_results[trade_date].add_trade(
+                vt_symbol, direction=direction, offset=offset, price=price, volume=volume
+            )
+
         return turnover, commission
+
+    def record_trade(
+        self,
+        vt_symbol: str,
+        direction: "Direction",
+        offset: "Offset",
+        price: float,
+        volume: float,
+        trade_dt: datetime,
+    ) -> None:
+        trade_date = trade_dt.date()
+        if trade_date not in self.daily_results:
+            self.daily_results[trade_date] = PortfolioDailyResult(trade_date, {})
+        self.daily_results[trade_date].add_trade(
+            vt_symbol, direction=direction, offset=offset, price=price, volume=volume
+        )

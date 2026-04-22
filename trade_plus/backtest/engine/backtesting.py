@@ -227,6 +227,15 @@ class BacktestingExecutionEngine(ExecutionEngine):
             trade.offset,
             trade.price,
             trade.volume,
+            self._datetime,
+        )
+        self._portfolio.record_trade(
+            trade.vt_symbol,
+            trade.direction,
+            trade.offset,
+            trade.price,
+            trade.volume,
+            self._datetime,
         )
 
     def get_signal(self) -> dict:
@@ -311,6 +320,36 @@ class BacktestingExecutionEngine(ExecutionEngine):
     def get_datetime(self) -> datetime | None:
         return self._datetime
 
+    def direct_trade(
+        self,
+        strategy: "Strategy",
+        vt_symbol: str,
+        direction: "Direction",
+        offset: "Offset",
+        price: float,
+        volume: float,
+    ) -> "TradeData":
+        self._trade_count += 1
+        exchange = extract_vt_symbol(vt_symbol)[1]
+
+        trade: TradeData = TradeData(
+            symbol=vt_symbol.split(".")[0],
+            exchange=exchange,
+            orderid=f"DIRECT.{self._trade_count}",
+            tradeid=str(self._trade_count),
+            direction=direction,
+            offset=offset,
+            price=price,
+            volume=volume,
+            datetime=self._datetime,
+            gateway_name=self.gateway_name,
+        )
+
+        self._apply_trade(trade)
+        self._strategy.update_trade(trade)
+        self._trades[trade.vt_tradeid] = trade
+        return trade
+
     def get_all_trades(self) -> list[TradeData]:
         return list(self._trades.values())
 
@@ -338,8 +377,12 @@ class BacktestingExecutionEngine(ExecutionEngine):
 
         import numpy as np
 
-        cumulative = np.cumsum([0.0] + daily_pnl_list)
-        balance = self._portfolio.initial_capital + cumulative
+        balance = []
+        current = self._portfolio.initial_capital
+        for pnl in daily_pnl_list:
+            current += pnl
+            balance.append(current)
+        balance = np.array(balance)
 
         highlevel = np.maximum.accumulate(balance)
         drawdown = balance - highlevel

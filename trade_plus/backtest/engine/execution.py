@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
+from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from ..data import OrderData, TradeData, BarData
+from ..data import OrderData, TradeData, BarData, Direction, Offset
 
 if TYPE_CHECKING:
     from ..strategy.template import Strategy
@@ -88,4 +89,21 @@ class ExecutionEngine(metaclass=ABCMeta):
     @abstractmethod
     def get_datetime(self) -> Optional[datetime]:
         """获取当前回测/实盘时间"""
+        pass
+
+    @abstractmethod
+    def direct_trade(
+        self,
+        strategy: "Strategy",
+        vt_symbol: str,
+        direction: "Direction",
+        offset: "Offset",
+        price: float,
+        volume: float,
+    ) -> "TradeData":
+        """
+        直接成交，不经过订单撮合。
+
+        用于止损等需要立即成交的场景。
+        """
         pass

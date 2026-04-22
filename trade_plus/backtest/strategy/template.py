@@ -88,6 +88,20 @@ class Strategy:
     ) -> list[str]:
         return self.send_order(vt_symbol, Direction.LONG, Offset.CLOSE, price, volume)
 
+    def exit_long(
+        self, vt_symbol: str, price: float, volume: float
+    ) -> "TradeData":
+        return self._engine.direct_trade(
+            self, vt_symbol, Direction.SHORT, Offset.CLOSE, price, volume
+        )
+
+    def entry_long(
+        self, vt_symbol: str, price: float, volume: float
+    ) -> "TradeData":
+        return self._engine.direct_trade(
+            self, vt_symbol, Direction.LONG, Offset.OPEN, price, volume
+        )
+
     def send_order(
         self,
         vt_symbol: str,

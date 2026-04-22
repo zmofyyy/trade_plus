@@ -181,6 +181,11 @@ class BacktestEngine:
             return {}
         return self._risk_layer.get_stats()
 
+    def get_daily_results(self) -> dict:
+        if self._execution_engine is None:
+            return {}
+        return self._execution_engine.get_daily_results()
+
     def plot(self, output_path: Optional[str] = None) -> None:
         if not self._statistics or "daily_df" not in self._statistics:
             print("No data to plot, run backtest first")
